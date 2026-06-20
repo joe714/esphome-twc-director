@@ -642,6 +642,10 @@ void TWCDirectorComponent::update_evse_sensors_(EvseEntry &evse, uint32_t now) {
   this->publish_sensor_(evse.available_current_sensor, initial_current_a);
 
   this->publish_sensor_(evse.session_current_sensor, session_amps);
+
+  // Session power = phase A voltage * session current (single-phase, watts)
+  this->publish_sensor_(evse.session_power_sensor,
+                        twc_device_get_phase_a_voltage_v(dev) * session_amps);
 }
 
 float TWCDirectorComponent::compute_session_amps_(const twc_device_t *dev) const {
@@ -1010,6 +1014,7 @@ void TWCDirectorComponent::add_evse(
     sensor::Sensor *max_current_sensor,
     number::Number *session_current,
     sensor::Sensor *session_current_sensor,
+    sensor::Sensor *session_power_sensor,
     text_sensor::TextSensor *mode,
     text_sensor::TextSensor *status_text,
     text_sensor::TextSensor *status_log,
@@ -1046,6 +1051,7 @@ void TWCDirectorComponent::add_evse(
   entry.max_current_sensor = max_current_sensor;
   entry.session_current = session_current;
   entry.session_current_sensor = session_current_sensor;
+  entry.session_power_sensor = session_power_sensor;
 
   if (contactor) contactor->set_parent(this, address);
 

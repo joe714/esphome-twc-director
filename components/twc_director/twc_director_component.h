@@ -163,6 +163,7 @@ class TWCDirectorComponent : public Component, public uart::UARTDevice {
                 sensor::Sensor *max_current_sensor,
                 number::Number *session_current,
                 sensor::Sensor *session_current_sensor,
+                sensor::Sensor *session_power_sensor,
                 text_sensor::TextSensor *mode,
                 text_sensor::TextSensor *status_text,
                 text_sensor::TextSensor *status_log,
@@ -271,6 +272,7 @@ class TWCDirectorComponent : public Component, public uart::UARTDevice {
     sensor::Sensor *max_current_sensor{nullptr};
     number::Number *session_current{nullptr};
     sensor::Sensor *session_current_sensor{nullptr};
+    sensor::Sensor *session_power_sensor{nullptr};
     text_sensor::TextSensor *mode{nullptr};
     text_sensor::TextSensor *status_text{nullptr};
     text_sensor::TextSensor *status_log{nullptr};
