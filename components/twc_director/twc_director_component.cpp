@@ -377,6 +377,23 @@ void TWCDirectorComponent::handle_auto_bind_(uint16_t address, twc_mode_t mode) 
         evse.enable_switch->set_parent(this, address);
       }
 
+      // Re-apply configured setpoints to the newly bound address. The on_boot
+      // number.set / restored states were originally applied against the slot's
+      // pre-bind address (0 when no static address is configured), so the core
+      // device for the real address would otherwise keep its built-in defaults
+      // (e.g. the 32A TWC_MAX_DEVICE_CURRENT_A cap).
+      if (evse.max_current && evse.max_current->has_state()) {
+        twc_core_set_max_current(&this->core_, address, evse.max_current->state);
+      }
+      if (evse.initial_current && evse.initial_current->has_state()) {
+        twc_core_set_desired_initial_current(&this->core_, address,
+                                             evse.initial_current->state);
+      }
+      if (evse.session_current && evse.session_current->has_state()) {
+        twc_core_set_desired_session_current(&this->core_, address,
+                                             evse.session_current->state);
+      }
+
       int slot = &evse - this->evse_entries_.data();
       ESP_LOGI(TAG, "Auto-bound slot %d → TWC 0x%04X (mode=%d)",
                slot, address, (int)mode);
