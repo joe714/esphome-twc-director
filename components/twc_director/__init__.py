@@ -12,9 +12,11 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     UNIT_AMPERE,
     UNIT_VOLT,
+    UNIT_WATT,
     UNIT_KILOWATT_HOURS,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_POWER,
     DEVICE_CLASS_ENERGY,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
@@ -79,6 +81,7 @@ CONF_MAX_CURRENT = "max_current"
 CONF_MAX_CURRENT_SENSOR = "max_current_sensor"
 CONF_SESSION_CURRENT = "session_current"
 CONF_SESSION_CURRENT_SENSOR = "session_current_sensor"
+CONF_SESSION_POWER = "session_power"
 CONF_MODE = "mode"
 CONF_STATUS_TEXT = "status_text"
 CONF_STATUS_LOG = "status_log"
@@ -124,6 +127,7 @@ def _evse_preprocess(config):
     _ensure_named_child(config, CONF_MAX_CURRENT_SENSOR, "Max Current Sensor")
     _ensure_named_child(config, CONF_SESSION_CURRENT, "Session Current Target")
     _ensure_named_child(config, CONF_SESSION_CURRENT_SENSOR, "Session Current")
+    _ensure_named_child(config, CONF_SESSION_POWER, "Session Power")
     _ensure_named_child(config, CONF_MODE, "Mode")
     _ensure_named_child(config, CONF_STATUS_TEXT, "Status")
     _ensure_named_child(config, CONF_STATUS_LOG, "Status Log")
@@ -265,6 +269,12 @@ CONFIG_SCHEMA = (
                                 unit_of_measurement=UNIT_AMPERE,
                                 icon=ICON_CURRENT_AC,
                                 device_class=DEVICE_CLASS_CURRENT,
+                                state_class=STATE_CLASS_MEASUREMENT,
+                            ),
+                            cv.Optional(CONF_SESSION_POWER): sensor.sensor_schema(
+                                unit_of_measurement=UNIT_WATT,
+                                icon=ICON_FLASH,
+                                device_class=DEVICE_CLASS_POWER,
                                 state_class=STATE_CLASS_MEASUREMENT,
                             ),
                             cv.Optional(CONF_MODE): text_sensor.text_sensor_schema(),
@@ -510,6 +520,12 @@ async def to_code(config):
                     evse_conf[CONF_SESSION_CURRENT_SENSOR]
                 )
 
+            session_power_sensor_ent = cg.nullptr
+            if CONF_SESSION_POWER in evse_conf:
+                session_power_sensor_ent = await sensor.new_sensor(
+                    evse_conf[CONF_SESSION_POWER]
+                )
+
             mode_text = cg.nullptr
             if CONF_MODE in evse_conf:
                 mode_text = await text_sensor.new_text_sensor(
@@ -622,6 +638,7 @@ async def to_code(config):
                     max_current_sensor_ent,
                     session_current_num,
                     session_current_sensor_ent,
+                    session_power_sensor_ent,
                     mode_text,
                     status_text,
                     status_log,
