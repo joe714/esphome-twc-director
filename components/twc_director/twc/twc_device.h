@@ -41,6 +41,9 @@ typedef struct twc_device {
   float phase_c_voltage_v;
   float total_energy_kwh;
   float session_energy_kwh;
+  bool  meter_valid;  // true once a meter (EB) frame has been decoded; until then
+                      // total_energy_kwh is just the 0 default and must not be
+                      // published (a spurious 0 looks like a reset to consumers)
 
   // Session energy tracking
   float session_energy_baseline_kwh;
@@ -113,6 +116,9 @@ float twc_device_get_phase_c_current_a(const twc_device_t *dev);
 float twc_device_get_phase_c_voltage_v(const twc_device_t *dev);
 float twc_device_get_total_energy_kwh(const twc_device_t *dev);
 float twc_device_get_session_energy_kwh(const twc_device_t *dev);
+
+// True once at least one meter (EB) frame has been decoded for this device.
+bool twc_device_meter_valid(const twc_device_t *dev);
 
 // =============================================================================
 // METER UPDATES (called internally by update_from_frame)
