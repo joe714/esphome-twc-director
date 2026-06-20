@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/number/number.h"
@@ -178,6 +179,14 @@ class TWCDirectorComponent : public Component, public uart::UARTDevice {
     this->charging_count_sensor_ = sensor;
   }
 
+  // Optional RS-485 direction control (DE/RE) pin for half-duplex transceivers
+  // that are NOT auto-direction (e.g. MAX485). Driven HIGH while transmitting a
+  // frame and LOW otherwise so the bus is released back to receive mode.
+  // Leave unset for auto-direction transceivers (e.g. MAX13487E).
+  void set_flow_control_pin(GPIOPin *pin) {
+    this->flow_control_pin_ = pin;
+  }
+
   // Optional master mode switch. We only store this pointer and expose a
   // simple helper for reading its current state.
   void set_master_mode_switch(TWCDirectorMasterModeSwitch *sw) {
@@ -323,6 +332,9 @@ class TWCDirectorComponent : public Component, public uart::UARTDevice {
   TWCDirectorMasterModeSwitch *master_mode_switch_{nullptr};
   binary_sensor::BinarySensor *link_ok_sensor_{nullptr};
   sensor::Sensor *charging_count_sensor_{nullptr};
+
+  // Optional RS-485 direction control pin (nullptr = auto-direction transceiver).
+  GPIOPin *flow_control_pin_{nullptr};
 
   bool master_mode_last_state_{false};
 

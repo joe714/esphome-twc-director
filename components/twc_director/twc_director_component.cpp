@@ -95,6 +95,13 @@ void log_callback_shim(twc_log_level_t level,
 void TWCDirectorComponent::setup() {
   ESP_LOGI(TAG, "TWC Director setup (master=0x%04X)", this->master_address_);
 
+  // Initialize the RS-485 direction control pin (if used) and start in receive
+  // mode so the bus is released for the TWCs to talk.
+  if (this->flow_control_pin_ != nullptr) {
+    this->flow_control_pin_->setup();
+    this->flow_control_pin_->digital_write(false);
+  }
+
   // Initialize core and frame decoder
   twc_core_init(&this->core_);
   twc_frame_decoder_init(&this->decoder_);
@@ -323,8 +330,19 @@ void TWCDirectorComponent::drain_tx_queue_(uint32_t now) {
   PendingTx pending = this->tx_queue_.front();
   this->tx_queue_.erase(this->tx_queue_.begin());
 
+  // For non-auto-direction transceivers, assert the driver-enable pin while we
+  // transmit, then flush and release the bus back to receive mode. Auto-direction
+  // transceivers (flow_control_pin unset) handle this in hardware.
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(true);
+
   for (size_t i = 0; i < pending.len; ++i) {
     this->write(pending.buf[i]);
+  }
+
+  if (this->flow_control_pin_ != nullptr) {
+    this->flush();  // ensure all bytes are clocked out before disabling the driver
+    this->flow_control_pin_->digital_write(false);
   }
 
   this->next_tx_at_ms_ = now + TX_INTERFRAME_GAP_MS;

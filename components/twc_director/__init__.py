@@ -2,12 +2,14 @@
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 
 from esphome.components import uart, switch, binary_sensor, text_sensor, sensor, number, button
 from esphome.const import (
     CONF_ID,
     CONF_UART_ID,
     CONF_NAME,
+    CONF_FLOW_CONTROL_PIN,
     UNIT_AMPERE,
     UNIT_VOLT,
     UNIT_KILOWATT_HOURS,
@@ -159,6 +161,11 @@ CONFIG_SCHEMA = (
 
             # UART this director will use to talk to the TWC bus
             cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+
+            # Optional RS-485 direction control (DE/RE) pin. Required for manual
+            # half-duplex transceivers (e.g. MAX485); omit for auto-direction
+            # transceivers (e.g. MAX13487E).
+            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
 
             # Optional switch that controls "master mode" vs passive/observer mode
             cv.Optional(CONF_MASTER_MODE): cv.All(
@@ -366,6 +373,11 @@ async def to_code(config):
     if CONF_EVSE_MAX_CURRENT_LIMIT in config:
         evse_max = config[CONF_EVSE_MAX_CURRENT_LIMIT]
         cg.add(var.set_evse_max_current_limit(evse_max))
+
+    # Optional RS-485 direction control pin for manual half-duplex transceivers
+    if CONF_FLOW_CONTROL_PIN in config:
+        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        cg.add(var.set_flow_control_pin(flow_control_pin))
 
     # Register as a regular ESPHome component so loop()/setup() are called
     await cg.register_component(var, config)
