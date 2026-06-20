@@ -632,10 +632,17 @@ void TWCDirectorComponent::update_evse_sensors_(EvseEntry &evse, uint32_t now) {
   this->publish_sensor_(evse.meter_voltage_phase_c,
                        twc_device_get_phase_c_voltage_v(dev));
   
-  this->publish_sensor_(evse.meter_energy_total,
-                       twc_device_get_total_energy_kwh(dev), 0.001f);
-  this->publish_sensor_(evse.meter_energy_session,
-                       twc_device_get_session_energy_kwh(dev), 0.001f);
+  // Only publish energy once a real meter (EB) frame has been seen. Before that
+  // total_energy_kwh is just the 0 default; publishing it would look like a
+  // meter reset to consumers (e.g. HA Utility Meter), which then double-count
+  // when it jumps to the true lifetime total. Leaving the sensors unpublished
+  // keeps them "unavailable" until the first reading.
+  if (twc_device_meter_valid(dev)) {
+    this->publish_sensor_(evse.meter_energy_total,
+                         twc_device_get_total_energy_kwh(dev), 0.001f);
+    this->publish_sensor_(evse.meter_energy_session,
+                         twc_device_get_session_energy_kwh(dev), 0.001f);
+  }
   
   // Current allocation
   float initial_current_a = twc_core_get_current_available_a(core_dev);

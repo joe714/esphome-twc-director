@@ -252,6 +252,10 @@ float twc_device_get_session_energy_kwh(const twc_device_t *dev) {
   return dev ? dev->session_energy_kwh : 0.0f;
 }
 
+bool twc_device_meter_valid(const twc_device_t *dev) {
+  return dev ? dev->meter_valid : false;
+}
+
 // =============================================================================
 // METER UPDATES
 // =============================================================================
@@ -270,6 +274,7 @@ void twc_device_set_meter_values(twc_device_t *dev,
   dev->phase_b_current_a = phase_l2_a;
   dev->phase_c_current_a = phase_l3_a;
   dev->total_energy_kwh = total_energy_kwh;
+  dev->meter_valid = true;
 
   // Session energy tracking. A session spans one plug-in period and must
   // survive charging pauses, so it is gated on vehicle presence rather than on
