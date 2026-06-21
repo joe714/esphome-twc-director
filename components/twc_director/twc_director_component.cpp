@@ -592,7 +592,25 @@ void TWCDirectorComponent::update_evse_sensors_(EvseEntry &evse, uint32_t now) {
                          twc_device_get_serial_number(dev));
   
   // Vehicle
-  bool vehicle_connected = twc_device_get_vehicle_connected(dev);
+  // The internal vehicle_connected flag is derived purely from a complete VIN,
+  // which only Tesla vehicles broadcast. Report the vehicle as connected if we
+  // have a VIN, OR the EVSE is delivering current, OR the peripheral's charge
+  // state shows it is engaged with a vehicle -- including "plugged in but not
+  // charging" states (WAITING / NEGOTIATING). Only READY (idle/no vehicle),
+  // ERROR and UNKNOWN are treated as not-connected. This keeps non-Tesla EVs,
+  // which never send a VIN, reported correctly whether or not they are drawing.
+  bool engaged_by_status =
+      status_code == TWC_HB_WAITING ||
+      status_code == TWC_HB_NEGOTIATING ||
+      status_code == TWC_HB_CHARGING ||
+      status_code == TWC_HB_MAX_CHARGE ||
+      status_code == TWC_HB_ACK_INCREASE_CURRENT ||
+      status_code == TWC_HB_ACK_DECREASE_CURRENT ||
+      status_code == TWC_HB_CHARGE_STARTED ||
+      status_code == TWC_HB_SETTING_LIMIT ||
+      status_code == TWC_HB_ADJUSTMENT_COMPLETE;
+  bool vehicle_connected = twc_device_get_vehicle_connected(dev) ||
+                           contactor_closed || engaged_by_status;
   this->publish_binary_sensor_if_changed_(evse.vehicle_connected, vehicle_connected);
   
   const char *vin = twc_device_get_vehicle_vin(dev);
