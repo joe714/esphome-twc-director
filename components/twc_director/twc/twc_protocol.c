@@ -181,7 +181,7 @@ size_t twc_build_heartbeat_payload(uint16_t dest_address,
   return required;
 }
 
-size_t twc_build_controller_negotiation_payload(uint8_t session_id,
+size_t twc_build_controller_negotiation_payload(uint16_t max_allowable_centiamps,
                                                  uint8_t *out_payload,
                                                  size_t capacity) {
   const size_t required = 11;
@@ -189,17 +189,26 @@ size_t twc_build_controller_negotiation_payload(uint8_t session_id,
     return 0;
   }
 
-  out_payload[0] = session_id;
-  memset(out_payload + 1, 0x00, 10);
+  // Presence payload mirrors the working Tesla controller: a fixed master
+  // signature byte followed by the bus's maximum allowable current (big-endian,
+  // centiamps), then padding. A peripheral uses the allowable current to decide
+  // it is authorized to charge; some EVSEs (notably non-Tesla vehicles, which
+  // never trigger a VIN-based authorization) will not autonomously close their
+  // contactor unless the master advertises a non-zero allowable current here.
+  out_payload[0] = TWC_MASTER_SIGN;
+  out_payload[1] = (uint8_t)((max_allowable_centiamps >> 8) & 0xFF);
+  out_payload[2] = (uint8_t)(max_allowable_centiamps & 0xFF);
+  memset(out_payload + 3, 0x00, 8);
 
   return required;
 }
 
-size_t twc_build_peripheral_pause_payload(uint8_t session_id,
+size_t twc_build_peripheral_pause_payload(uint16_t max_allowable_centiamps,
                                            uint8_t *out_payload,
                                            size_t capacity) {
   // Same layout as controller negotiation
-  return twc_build_controller_negotiation_payload(session_id, out_payload, capacity);
+  return twc_build_controller_negotiation_payload(max_allowable_centiamps,
+                                                   out_payload, capacity);
 }
 
 size_t twc_build_simple_request_payload(uint16_t dest_address,
@@ -401,7 +410,7 @@ size_t twc_build_heartbeat_frame(uint16_t master_address,
 }
 
 size_t twc_build_controller_negotiation_frame(uint16_t master_address,
-                                               uint8_t session_id,
+                                               uint16_t max_allowable_centiamps,
                                                uint8_t *out_frame,
                                                size_t capacity) {
   uint8_t header[4];
@@ -412,7 +421,7 @@ size_t twc_build_controller_negotiation_frame(uint16_t master_address,
     return 0;
   }
 
-  size_t payload_len = twc_build_controller_negotiation_payload(session_id,
+  size_t payload_len = twc_build_controller_negotiation_payload(max_allowable_centiamps,
                                                                  payload,
                                                                  sizeof(payload));
   if (payload_len == 0) {
@@ -423,7 +432,7 @@ size_t twc_build_controller_negotiation_frame(uint16_t master_address,
 }
 
 size_t twc_build_peripheral_pause_frame(uint16_t master_address,
-                                         uint8_t session_id,
+                                         uint16_t max_allowable_centiamps,
                                          uint8_t *out_frame,
                                          size_t capacity) {
   uint8_t header[4];
@@ -434,7 +443,7 @@ size_t twc_build_peripheral_pause_frame(uint16_t master_address,
     return 0;
   }
 
-  size_t payload_len = twc_build_peripheral_pause_payload(session_id,
+  size_t payload_len = twc_build_peripheral_pause_payload(max_allowable_centiamps,
                                                            payload,
                                                            sizeof(payload));
   if (payload_len == 0) {

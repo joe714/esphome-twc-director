@@ -105,6 +105,11 @@ typedef enum {
   TWC_CMD_VIN_LO                  = 0xF1,  // Vehicle VIN (last segment)
 } twc_cmd_t;
 
+// Master signature byte advertised in the presence (E1/E2) payload. Matches the
+// value used by the reference twc-controller; peripherals expect a recognized
+// master signature before they will autonomously begin charging.
+#define TWC_MASTER_SIGN 0x77
+
 // =============================================================================
 // COMMAND SAFETY HELPERS
 // =============================================================================
@@ -217,22 +222,24 @@ size_t twc_build_heartbeat_payload(uint16_t dest_address,
 // Build CONTROLLER_NEGOTIATION (E1) payload for session announce.
 //
 // Payload layout (11 bytes):
-//   [0]    : session_id
-//   [1..10]: padding (0x00)
+//   [0]    : master sign (TWC_MASTER_SIGN)
+//   [1..2] : max allowable current, centiamps, big-endian
+//   [3..10]: padding (0x00)
 //
 // Returns payload length on success (11), 0 on failure.
-size_t twc_build_controller_negotiation_payload(uint8_t session_id,
+size_t twc_build_controller_negotiation_payload(uint16_t max_allowable_centiamps,
                                                  uint8_t *out_payload,
                                                  size_t capacity);
 
 // Build PERIPHERAL_NEGOTIATION (E2) payload for session pause.
 //
 // Payload layout (11 bytes):
-//   [0]    : session_id
-//   [1..10]: padding (0x00)
+//   [0]    : master sign (TWC_MASTER_SIGN)
+//   [1..2] : max allowable current, centiamps, big-endian
+//   [3..10]: padding (0x00)
 //
 // Returns payload length on success (11), 0 on failure.
-size_t twc_build_peripheral_pause_payload(uint8_t session_id,
+size_t twc_build_peripheral_pause_payload(uint16_t max_allowable_centiamps,
                                            uint8_t *out_payload,
                                            size_t capacity);
 
@@ -383,13 +390,13 @@ size_t twc_build_heartbeat_frame(uint16_t master_address,
 
 // Build complete CONTROLLER_NEGOTIATION (E1) broadcast frame.
 size_t twc_build_controller_negotiation_frame(uint16_t master_address,
-                                               uint8_t session_id,
+                                               uint16_t max_allowable_centiamps,
                                                uint8_t *out_frame,
                                                size_t capacity);
 
 // Build complete PERIPHERAL_NEGOTIATION (E2) pause frame.
 size_t twc_build_peripheral_pause_frame(uint16_t master_address,
-                                         uint8_t session_id,
+                                         uint16_t max_allowable_centiamps,
                                          uint8_t *out_frame,
                                          size_t capacity);
 
