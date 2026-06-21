@@ -163,28 +163,41 @@ Payload contents and length depend on the command. Multi‑byte integers follow 
 
 `current_available` and `current_delivered` are encoded as unsigned integers in centi‑amps (0.01 A units).
 
-### Controller negotiation (FB/FD E1)
+### Controller negotiation / presence (FB/FC/FD E1)
 
-`E1` frames implement the controller side of the load‑sharing negotiation.
+`E1` frames implement the controller side of the load‑sharing negotiation and
+double as the master's **presence announcement**.
 
-- `FB E1` — controller negotiation request (master &gt; peripheral)
+- `FC E1` / `FB E1` — controller presence / negotiation request (master &gt; peripheral)
 - `FD E1` — controller negotiation data in replies, when present
 
-Payload layout:
+Payload layout (master &gt; peripheral):
 
-| Field   | Size (bytes) | Type   | Notes                               |
-|---------|--------------|--------|-------------------------------------|
-| session | 1            | uint8  | Session identifier, typically incremented by the master |
-| padding | 10           | bytes  | Reserved / padding                  |
+| Field                | Size (bytes) | Type   | Notes                               |
+|----------------------|--------------|--------|-------------------------------------|
+| sign                 | 1            | uint8  | Master signature, `0x77`. Peripherals expect a recognized signature before they will autonomously begin charging. |
+| max_allowable_current| 2            | uint16 | Maximum current the master allows on the bus, big‑endian centi‑amps (0.01 A). |
+| padding              | 8            | bytes  | Reserved / padding                  |
+
+> **Note:** Earlier revisions of this document and of the director firmware
+> treated byte 0 as an incrementing `session` id and the remaining 10 bytes as
+> padding, advertising **no** allowable current. Live bus captures against a
+> working reference controller showed the master instead announces a fixed
+> signature (`0x77`) and its allowable current here. Without a non-zero
+> `max_allowable_current`, some peripherals (notably non-Tesla EVs, which never
+> broadcast a VIN) will not autonomously close their contactor and never start
+> charging. The same payload is sent for the master-side `E2` request below.
 
 ### Peripheral negotiation (FB/FD E2)
 
 `E2` frames carry the peripheral’s contribution to negotiation.
 
-- `FB E2` — peripheral negotiation request (master &gt; peripheral)
+- `FB E2` — peripheral negotiation request (master &gt; peripheral). Carries the
+  same presence payload as the controller `E1` request above (`sign` +
+  `max_allowable_current`).
 - `FD E2` — peripheral negotiation reply (peripheral &gt; master)
 
-Payload layout:
+Reply payload layout (peripheral &gt; master):
 
 | Field             | Size (bytes) | Type   | Notes                                        |
 |-------------------|--------------|--------|----------------------------------------------|
@@ -339,8 +352,9 @@ This confirms both devices are alive and reachable.
 These two commands implement the load-sharing negotiation.
 
 Master → Peripheral (E1 = TWC_CONTROLLER)
-E1 Controller Negotiation:
-  - session ID (increments each cycle)
+E1 Controller Negotiation / presence:
+  - sign (master signature, 0x77)
+  - max_allowable_current (bus current limit the master authorizes)
   - zero padding (reserved)
 
 Peripheral → Master (E2 = TWC_PERIPHERAL)
@@ -591,8 +605,9 @@ class TWCProtocol:
     class ControllerNegotiation(BigEndianStructure):
         _pack_ = 1
         _fields_ = [
-            ("session", ctypes.c_uint8),
-            ("padding", ctypes.c_uint8 * 10)
+            ("sign", ctypes.c_uint8),                  # master signature, 0x77
+            ("max_allowable_current", ctypes.c_uint16),  # bus limit, centi-amps
+            ("padding", ctypes.c_uint8 * 8)
         ]
 
     class RequestData(BigEndianStructure):

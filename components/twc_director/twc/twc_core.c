@@ -333,11 +333,18 @@ static bool handle_startup_burst(twc_core_t *core, uint32_t now_ms) {
   uint8_t frame[16];
   size_t frame_len = 0;
 
+  // Maximum allowable current the master advertises on the bus, in centiamps.
+  // Peripherals use this to decide they are authorized to charge. Fall back to a
+  // sane default if no global limit has been configured yet.
+  float max_a = (core->global_max_current_a > 0.0f) ? core->global_max_current_a
+                                                     : 32.0f;
+  uint16_t max_allowable_centiamps = (uint16_t)(max_a * 100.0f + 0.5f);
+
   // Send E1 frames, then E2 frames
   if (core->startup_burst_e1_sent < TWC_STARTUP_BURST_E1_COUNT) {
     frame_len = twc_build_controller_negotiation_frame(
         core->master_address,
-        core->master_session_id,
+        max_allowable_centiamps,
         frame, sizeof(frame)
     );
     if (frame_len > 0) {
@@ -349,7 +356,7 @@ static bool handle_startup_burst(twc_core_t *core, uint32_t now_ms) {
   } else if (core->startup_burst_e2_sent < TWC_STARTUP_BURST_E2_COUNT) {
     frame_len = twc_build_peripheral_pause_frame(
         core->master_address,
-        core->master_session_id,
+        max_allowable_centiamps,
         frame, sizeof(frame)
     );
     if (frame_len > 0) {
@@ -685,10 +692,25 @@ static bool send_heartbeat(twc_core_t *core, uint32_t now_ms) {
         available_centiamps = 0u;
         delivered_centiamps = 0u;
       } else {
-        // Normal heartbeat: all zeros
-        charge_state = 0u;
-        available_centiamps = 0u;
-        delivered_centiamps = 0u;
+        // Steady-state heartbeat: continuously advertise the authorized current
+        // so the peripheral knows it may charge. The TWC treats avail=0 as "not
+        // authorized" and stays in Ready; non-Tesla EVs never produce a VIN /
+        // negotiation edge, so without a standing advertisement they would never
+        // start. This mirrors the twc-controller, which keeps the secondary's
+        // current limit advertised rather than relying on connect-edge
+        // detection. The TWC will not energise its contactor without a vehicle
+        // physically connected, so advertising into an empty charger is safe.
+        float authorized = dev->applied_initial_current_a;
+        if (authorized > dev_max) authorized = dev_max;
+        if (authorized > 0.0f) {
+          charge_state = 0x09u;  // set current limit to the value below
+          available_centiamps = (uint16_t)(authorized * 100.0f + 0.5f);
+          delivered_centiamps = 0u;
+        } else {
+          charge_state = 0u;
+          available_centiamps = 0u;
+          delivered_centiamps = 0u;
+        }
       }
     }
 
