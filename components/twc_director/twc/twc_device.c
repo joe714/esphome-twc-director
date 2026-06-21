@@ -271,8 +271,17 @@ void twc_device_set_meter_values(twc_device_t *dev,
   dev->phase_c_current_a = phase_l3_a;
   dev->total_energy_kwh = total_energy_kwh;
 
-  // Session energy tracking
-  if (!dev->vehicle_connected) {
+  // Session energy tracking. A session spans one plug-in period and must
+  // survive charging pauses, so it is gated on vehicle presence rather than on
+  // current actually flowing. vehicle_connected is VIN-derived and is never set
+  // for non-Tesla EVs, so fall back to the peripheral's charge state: any
+  // engaged state (anything other than Ready/Error/Unknown) means a vehicle is
+  // present. Without this, session energy never accumulates for non-Teslas.
+  bool vehicle_present = dev->vehicle_connected ||
+                         (dev->status_code != TWC_HB_READY &&
+                          dev->status_code != TWC_HB_ERROR &&
+                          dev->status_code != TWC_HB_UNKNOWN);
+  if (!vehicle_present) {
     dev->session_active = false;
     return;
   }
